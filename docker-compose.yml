@@ -1,0 +1,84 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/app
+      - REDIS_URL=redis://redis:6379
+      - RUST_LOG=info
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    volumes:
+      # Bind mount for application logs
+      - ./logs:/app/logs
+    networks:
+      - app-network
+
+  db:
+    image: postgres:17.8
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: app
+    volumes:
+      # Bind mount for PostgreSQL data directory
+      - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+
+  redis:
+    image: redis:8.6
+    command: redis-server --appendonly yes
+    volumes:
+      # Bind mount for Redis data directory
+      - ./data/redis:/data
+    networks:
+      - app-network
+
+  prometheus:
+    image: prom/prometheus:v3.5.1
+    ports:
+      - "9090:9090"
+    volumes:
+      # Bind mount for Prometheus configuration
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      # Bind mount for Prometheus data directory (accessible from host)
+      - ./data/prometheus:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=15d'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+    networks:
+      - app-network
+
+  nginx:
+    image: nginx:1.29.5
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      # Bind mount for nginx configuration
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Bind mount for nginx logs
+      - ./logs/nginx:/var/log/nginx
+    depends_on:
+      - app
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge

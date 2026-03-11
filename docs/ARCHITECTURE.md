@@ -69,6 +69,7 @@ This document describes the architectural design of the Rust backend framework, 
 | API Documentation | utoipa | 4.2 |
 | Metrics | prometheus-client | 0.22 |
 | Logging | tracing | 0.1 |
+| Monitoring | Prometheus | v3.5.1 |
 
 ---
 

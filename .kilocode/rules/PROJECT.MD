@@ -146,6 +146,11 @@ Project ini untuk pengembangan framework rust untuk backend melalui docker. akan
 - redis:8.6
 - postgres:17.8
 
+## External Services
+
+### Monitoring
+- Prometheus (prom/prometheus:v3.5.1) - Metrics collection and storage
+
 ## Project Structure
 
 ```
@@ -253,6 +258,7 @@ rust-toolchain.toml         # Rust version specification
 docker-compose.yml          # Docker Compose configuration
 docker-compose.dev.yml      # Development Docker Compose
 docker-compose.prod.yml     # Production Docker Compose
+prometheus.yml             # Prometheus configuration
 ```
 
 ## Security Specification
