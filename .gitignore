@@ -1,0 +1,35 @@
+# Build artifacts
+/target/
+**/target/
+
+# Cargo lock - uncomment if you want to commit it
+# Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Backup files
+*.bak
+*.tmp
+*.old
+
+# Temporary files
+temp/
+tmp/
