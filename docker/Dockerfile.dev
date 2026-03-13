@@ -1,0 +1,43 @@
+# Development Dockerfile
+# For local development with hot reload
+
+FROM rust:1.94.0
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    postgresql-client \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install cargo-watch for hot reload
+RUN cargo install cargo-watch
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY Cargo.toml Cargo.lock ./
+COPY rust-toolchain.toml ./
+
+# Create source directory structure
+RUN mkdir -p src
+
+# Copy all source files
+COPY src ./src
+COPY migrations ./migrations
+COPY tests ./tests
+
+# Set environment variables for development
+ENV RUST_LOG=debug
+ENV SERVER_HOST=0.0.0.0
+ENV SERVER_PORT=8080
+
+# Expose port
+EXPOSE 8080
+
+# Run the application with hot reload
+# Note: For hot reload, use cargo-watch
+# CMD ["cargo", "watch", "-x", "run"]
+CMD ["cargo", "run"]

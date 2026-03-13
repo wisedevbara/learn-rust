@@ -1,0 +1,46 @@
+# Cargo Configuration
+# Build and development settings
+
+[alias]
+# Run with all features
+watch = "watch -x run"
+
+# Run tests
+test-all = "test --all-features"
+
+# Run clippy
+lint = "clippy -- -D warnings"
+
+# Build with all features
+build-all = "build --all-features"
+
+[build]
+# Incremental build
+incremental = true
+
+# Target directory
+target-dir = "target"
+
+# Jobs (parallel compilation)
+jobs = 4
+
+[term]
+# Verbose output
+verbose = false
+
+# Color output
+color = 'auto'
+
+[net]
+# Git SSH
+git-fetch-with-cli = false
+
+# Retry attempts
+retry = 2
+
+[http]
+# Check for new versions of dependencies
+check-update-seconds = 3600
+
+# Concurrent requests
+multiplex = true
