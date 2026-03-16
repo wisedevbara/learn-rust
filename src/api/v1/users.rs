@@ -9,10 +9,10 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::api::RequestExtract;
 use crate::business::entities::user::Role;
 use crate::data::repositories::user_repository::UserRepository;
-use crate::error::app_error::AppError;
-use crate::middleware::auth::{Claims, RequestClaims};
+use crate::business::services::auth_service::AccessClaims;
 
 /// Query parameters for listing users
 #[derive(Debug, Deserialize)]
@@ -83,8 +83,8 @@ impl UserState {
 }
 
 /// Configure user routes
-/// Takes shared app_state from main.rs to ensure single repository instance
-pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::main::AppState) {
+/// Takes shared app_state from lib.rs to ensure single repository instance
+pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::AppState) {
     let state = UserState::new(app_state.user_repo.clone());
     
     cfg.app_data(web::Data::new(state))
@@ -98,12 +98,12 @@ pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::main::AppState
 }
 
 /// Check if the current user has admin role
-fn is_admin(claims: &Claims) -> bool {
+fn is_admin(claims: &AccessClaims) -> bool {
     claims.role == "admin"
 }
 
 /// Check if the current user can access the target user (admin or same user)
-fn can_access_user(claims: &Claims, target_user_id: Uuid) -> bool {
+fn can_access_user(claims: &AccessClaims, target_user_id: Uuid) -> bool {
     if is_admin(claims) {
         return true;
     }
@@ -118,7 +118,7 @@ fn can_access_user(claims: &Claims, target_user_id: Uuid) -> bool {
 /// Check if the current user can update the target user
 /// - Admin can update any user
 /// - User can update their own profile but cannot change role
-fn can_update_user(claims: &Claims, target_user_id: Uuid, new_role: &Option<String>) -> bool {
+fn can_update_user(claims: &AccessClaims, target_user_id: Uuid, new_role: &Option<String>) -> bool {
     if is_admin(claims) {
         return true;
     }
@@ -137,18 +137,7 @@ fn can_update_user(claims: &Claims, target_user_id: Uuid, new_role: &Option<Stri
 }
 
 /// List all users (admin only)
-#[utoipa::path(
-    get,
-    path = "/api/v1/users",
-    tag = "Users",
-    security = ("bearerAuth" = []),
-    params(UserListQuery),
-    responses(
-        (status = 200, description = "List of users", body = UserListResponse),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not authorized - admin only")
-    )
-)]
+#[actix_web::get("/")]
 async fn list_users(
     http_req: actix_web::HttpRequest,
     query: web::Query<UserListQuery>,
@@ -166,7 +155,7 @@ async fn list_users(
     };
     
     // Check admin role
-    if !is_admin(claims) {
+    if !is_admin(&claims) {
         return Ok(HttpResponse::Forbidden().json(serde_json::json!({
             "error": "Admin access required",
             "code": "FORBIDDEN"
@@ -202,18 +191,7 @@ async fn list_users(
 }
 
 /// Get user by ID
-#[utoipa::path(
-    get,
-    path = "/api/v1/users/{id}",
-    tag = "Users",
-    security = ("bearerAuth" = []),
-    responses(
-        (status = 200, description = "User found", body = UserResponse),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not authorized"),
-        (status = 404, description = "User not found")
-    )
-)]
+#[actix_web::get("/{id}")]
 async fn get_user(
     http_req: actix_web::HttpRequest,
     path: web::Path<String>,
@@ -242,7 +220,7 @@ async fn get_user(
     };
     
     // Check authorization (admin or same user)
-    if !can_access_user(claims, user_id) {
+    if !can_access_user(&claims, user_id) {
         return Ok(HttpResponse::Forbidden().json(serde_json::json!({
             "error": "Access denied - you can only view your own profile",
             "code": "FORBIDDEN"
@@ -270,19 +248,7 @@ async fn get_user(
 }
 
 /// Update user
-#[utoipa::path(
-    put,
-    path = "/api/v1/users/{id}",
-    tag = "Users",
-    security = ("bearerAuth" = []),
-    request_body = UpdateUserRequest,
-    responses(
-        (status = 200, description = "User updated", body = UserResponse),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not authorized"),
-        (status = 404, description = "User not found")
-    )
-)]
+#[actix_web::put("/{id}")]
 async fn update_user(
     http_req: actix_web::HttpRequest,
     path: web::Path<String>,
@@ -312,7 +278,7 @@ async fn update_user(
     };
     
     // Check authorization (admin or same user, with role change restrictions)
-    if !can_update_user(claims, user_id, &req.role) {
+    if !can_update_user(&claims, user_id, &req.role) {
         return Ok(HttpResponse::Forbidden().json(serde_json::json!({
             "error": "Access denied - you can only update your own profile",
             "code": "FORBIDDEN"
@@ -357,7 +323,7 @@ async fn update_user(
         password_hash: existing_user.password_hash,
         role: if let Some(ref role_str) = req.role {
             // Only admin can change role
-            if is_admin(claims) {
+            if is_admin(&claims) {
                 Role::from_string(role_str)
             } else {
                 existing_user.role
@@ -384,18 +350,7 @@ async fn update_user(
 }
 
 /// Delete user (admin only)
-#[utoipa::path(
-    delete,
-    path = "/api/v1/users/{id}",
-    tag = "Users",
-    security = ("bearerAuth" = []),
-    responses(
-        (status = 200, description = "User deleted"),
-        (status = 401, description = "Not authenticated"),
-        (status = 403, description = "Not authorized - admin only"),
-        (status = 404, description = "User not found")
-    )
-)]
+#[actix_web::delete("/{id}")]
 async fn delete_user(
     http_req: actix_web::HttpRequest,
     path: web::Path<String>,
@@ -413,7 +368,7 @@ async fn delete_user(
     };
     
     // Check admin role
-    if !is_admin(claims) {
+    if !is_admin(&claims) {
         return Ok(HttpResponse::Forbidden().json(serde_json::json!({
             "error": "Admin access required",
             "code": "FORBIDDEN"
@@ -431,28 +386,9 @@ async fn delete_user(
         }
     };
     
-    // Check if user exists first
-    let exists = match state.user_repo.find_by_id(user_id).await {
-        Ok(Some(_)) => true,
-        Ok(None) => false,
-        Err(e) => {
-            return Ok(HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": e.message(),
-                "code": e.code().to_string()
-            })));
-        }
-    };
-    
-    if !exists {
-        return Ok(HttpResponse::NotFound().json(serde_json::json!({
-            "error": "User not found",
-            "code": "NOT_FOUND"
-        })));
-    }
-    
     // Delete user
     match state.user_repo.delete(user_id).await {
-        Ok(()) => {
+        Ok(_) => {
             Ok(HttpResponse::Ok().json(serde_json::json!({
                 "message": "User deleted successfully"
             })))

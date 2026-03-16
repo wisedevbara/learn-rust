@@ -24,7 +24,7 @@ use crate::data::repositories::user_repository::UserRepository;
 use crate::error::app_error::AppError;
 
 /// JWT claims structure for access tokens
-#[derive(Debug, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct AccessClaims {
     pub sub: String,      // User ID
     pub email: String,
@@ -33,6 +33,9 @@ pub struct AccessClaims {
     pub iat: i64,
     pub token_type: String,
 }
+
+/// Alias for AccessClaims
+pub type Claims = AccessClaims;
 
 /// JWT claims structure for refresh tokens
 #[derive(Debug, serde::Serialize, serde::Deserialize)]
@@ -265,7 +268,7 @@ impl AuthService for AuthServiceImpl {
         let password_hash = Self::hash_password(&password)?;
         
         // Create user with role (default to User if None)
-        let role = Role::from_optional(role);
+        let role = role.unwrap_or(Role::User);
         let user = User::new(email, password_hash, role);
         
         // Note: In a full implementation, this would call the repository
@@ -321,8 +324,8 @@ impl AuthService for AuthServiceImpl {
             .ok_or(AppError::NotFound("User not found".to_string()))?;
         
         // Generate new tokens
-        let new_access_token = self.generate_access_token(&user).await?;
-        let new_refresh_token = self.generate_refresh_token(&user).await?;
+        let new_access_token = self.generate_access_token(&user)?;
+        let new_refresh_token = self.generate_refresh_token(&user)?;
         
         // Delete old refresh token (rotation)
         self.delete_refresh_token(&token_hash).await?;

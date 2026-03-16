@@ -13,22 +13,13 @@ RUN apt-get update && apt-get install -y \
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY Cargo.toml Cargo.lock ./
-COPY rust-toolchain.toml ./
-
-# Create build directory
-RUN mkdir -p src
-
-# Build dependencies (cached)
-RUN cargo build --release --locked || cargo build --release
-
-# Copy source code
+# Copy all project files
+COPY Cargo.toml rust-toolchain.toml ./
 COPY src ./src
 COPY migrations ./migrations
 
 # Build the application
-RUN cargo build --release --locked
+RUN cargo build --release
 
 # Runtime stage
 FROM debian:bookworm-slim

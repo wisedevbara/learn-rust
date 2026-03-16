@@ -11,33 +11,26 @@ use chrono::{Duration, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+use crate::api::RequestExtract;
 use crate::business::entities::user::Role;
 use crate::business::services::auth_service::{AuthService, AuthServiceImpl, RefreshClaims};
 use crate::config::app::JwtConfig;
-use crate::data::models::RefreshTokenRow;
-use crate::data::repositories::user_repository::UserRepository;
 use crate::error::app_error::AppError;
-use crate::middleware::auth::{Claims, RequestUserId};
 
 /// Register request payload
-#[derive(Debug, Deserialize, Serialize, Validator)]
-#[validator(schema(rules(
-    email = "required,email",
-    password = "required,minLength(8)"
-)))]
+#[derive(Debug, Deserialize, Serialize, validator::Validate)]
 pub struct RegisterRequest {
+    #[validate(email)]
     pub email: String,
+    #[validate(length(min = 8))]
     pub password: String,
     pub role: Option<String>,
 }
 
 /// Login request payload
-#[derive(Debug, Deserialize, Serialize, Validator)]
-#[validator(schema(rules(
-    email = "required,email",
-    password = "required"
-)))]
+#[derive(Debug, Deserialize, Serialize, validator::Validate)]
 pub struct LoginRequest {
+    #[validate(email)]
     pub email: String,
     pub password: String,
 }
@@ -81,14 +74,20 @@ impl AuthState {
 }
 
 /// Configure authentication routes
-/// Takes shared app_state from main.rs to ensure single repository instance
-pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::main::AppState) {
-    let jwt_config = app_state.jwt_config.clone();
+/// Takes shared app_state from lib.rs to ensure single repository instance
+pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::AppState) {
+    // Create a cloned JwtConfig (not Arc) for the service
+    let jwt_config = JwtConfig {
+        secret: app_state.jwt_config.secret.clone(),
+        access_token_expiry: app_state.jwt_config.access_token_expiry,
+        refresh_token_expiry: app_state.jwt_config.refresh_token_expiry,
+        issuer: app_state.jwt_config.issuer.clone(),
+    };
     let auth_service: Arc<dyn AuthService> = Arc::new(
-        AuthServiceImpl::new(app_state.user_repo.clone(), jwt_config.clone())
+        AuthServiceImpl::new(app_state.user_repo.clone(), jwt_config)
     );
     
-    let state = AuthState::new(auth_service, jwt_config);
+    let state = AuthState::new(auth_service, app_state.jwt_config.clone());
     
     cfg.app_data(web::Data::new(state))
         .service(
@@ -101,17 +100,7 @@ pub fn configure(cfg: &mut web::ServiceConfig, app_state: &crate::main::AppState
 }
 
 /// Register new user
-#[utoipa::path(
-    post,
-    path = "/api/v1/auth/register",
-    tag = "Authentication",
-    request_body = RegisterRequest,
-    responses(
-        (status = 201, description = "User registered successfully", body = AuthResponse),
-        (status = 400, description = "Invalid request"),
-        (status = 409, description = "User already exists")
-    )
-)]
+#[actix_web::post("/register")]
 async fn register(
     req: web::Json<RegisterRequest>,
     state: web::Data<AuthState>,
@@ -165,16 +154,7 @@ async fn register(
 }
 
 /// User login
-#[utoipa::path(
-    post,
-    path = "/api/v1/auth/login",
-    tag = "Authentication",
-    request_body = LoginRequest,
-    responses(
-        (status = 200, description = "Login successful", body = AuthResponse),
-        (status = 401, description = "Invalid credentials")
-    )
-)]
+#[actix_web::post("/login")]
 async fn login(
     req: web::Json<LoginRequest>,
     state: web::Data<AuthState>,
@@ -201,7 +181,7 @@ async fn login(
                 expires_in: state.jwt_config.access_token_expiry,
             }))
         }
-        Err(e) => {
+        Err(_e) => {
             Ok(HttpResponse::Unauthorized().json(serde_json::json!({
                 "error": "Invalid credentials",
                 "code": "INVALID_CREDENTIALS"
@@ -211,16 +191,7 @@ async fn login(
 }
 
 /// Refresh access token
-#[utoipa::path(
-    post,
-    path = "/api/v1/auth/refresh",
-    tag = "Authentication",
-    request_body = RefreshRequest,
-    responses(
-        (status = 200, description = "Token refreshed successfully", body = AuthResponse),
-        (status = 401, description = "Invalid refresh token")
-    )
-)]
+#[actix_web::post("/refresh")]
 async fn refresh(
     req: web::Json<RefreshRequest>,
     state: web::Data<AuthState>,
@@ -334,24 +305,14 @@ async fn refresh(
 }
 
 /// User logout
-#[utoipa::path(
-    post,
-    path = "/api/v1/auth/logout",
-    tag = "Authentication",
-    security = ("bearerAuth" = []),
-    request_body = LogoutRequest,
-    responses(
-        (status = 200, description = "Logout successful"),
-        (status = 401, description = "Not authenticated")
-    )
-)]
+#[actix_web::post("/logout")]
 async fn logout(
     req: web::Json<LogoutRequest>,
     http_req: actix_web::HttpRequest,
     state: web::Data<AuthState>,
 ) -> Result<HttpResponse> {
     // Get user ID from request (set by auth middleware)
-    let user_id = match http_req.user_id() {
+    let _user_id = match http_req.user_id() {
         Some(id) => id,
         None => {
             return Ok(HttpResponse::Unauthorized().json(serde_json::json!({
@@ -379,7 +340,7 @@ async fn logout(
 }
 
 /// Validate refresh token
-fn validate_refresh_token(token: &str, config: &JwtConfig) -> Result<RefreshClaims, AppError> {
+fn validate_refresh_token(token: &str, config: &Arc<JwtConfig>) -> Result<RefreshClaims, AppError> {
     use jsonwebtoken::{decode, DecodingKey, TokenData, Validation};
     
     let token_data: TokenData<RefreshClaims> = decode(
