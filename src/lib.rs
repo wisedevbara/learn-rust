@@ -38,3 +38,6 @@ pub use actix_web;
 pub use anyhow;
 pub use serde;
 pub use tokio;
+
+/// Library version
+pub const VERSION: &str = env!("CARGO_PKG_VERSION");
