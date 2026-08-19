@@ -91,4 +91,4 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-// [hermes-maint] 2026-08-15 17:40 WIB — chore: annotate code maintenance
+// [hermes-maint] 2026-08-19 17:10 WIB — docs: codebase upkeep note
