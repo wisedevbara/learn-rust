@@ -26,3 +26,5 @@ impl RequestExtract for actix_web::HttpRequest {
         self.claims().and_then(|c| uuid::Uuid::parse_str(&c.sub).ok())
     }
 }
+
+// [hermes-maint] 2026-08-20 21:40 WIB — chore: annotate code maintenance
