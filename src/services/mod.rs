@@ -7,4 +7,4 @@
 pub mod cache;
 pub mod email;
 
-// [hermes-maint] 2026-08-12 20:40 WIB — chore: refresh source annotation
+// [hermes-maint] 2026-08-22 17:20 WIB — docs: add maintenance note
