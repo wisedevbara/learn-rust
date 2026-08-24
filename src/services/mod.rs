@@ -7,4 +7,4 @@
 pub mod cache;
 pub mod email;
 
-// [hermes-maint] 2026-08-22 17:20 WIB — docs: add maintenance note
+// [hermes-maint] 2026-08-24 19:30 WIB — chore: update maintenance marker
