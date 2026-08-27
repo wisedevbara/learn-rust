@@ -42,4 +42,4 @@ pub use tokio;
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-// [hermes-maint] 2026-08-16 18:00 WIB — docs: codebase upkeep note
+// [hermes-maint] 2026-08-27 17:50 WIB — docs: add maintenance note
