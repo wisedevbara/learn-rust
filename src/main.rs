@@ -91,4 +91,4 @@ async fn main() -> std::io::Result<()> {
     .await
 }
 
-// [hermes-maint] 2026-08-19 17:10 WIB — docs: codebase upkeep note
+// [hermes-maint] 2026-08-29 21:50 WIB — chore: refresh source annotation
